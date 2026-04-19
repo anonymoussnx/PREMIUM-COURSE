@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Toaster } from "react-hot-toast";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -66,21 +67,23 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${outfit.variable}`}>
       <body className="bg-brand-black text-white antialiased">
-        <Navbar />
-        <main>{children}</main>
-        <Footer />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: "#11111E",
-              color: "#f8f8ff",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: "12px",
-              fontSize: "14px",
-            },
-          }}
-        />
+        <AuthProvider>
+          <Navbar />
+          <main>{children}</main>
+          <Footer />
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: "#11111E",
+                color: "#f8f8ff",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "12px",
+                fontSize: "14px",
+              },
+            }}
+          />
+        </AuthProvider>
       </body>
     </html>
   );

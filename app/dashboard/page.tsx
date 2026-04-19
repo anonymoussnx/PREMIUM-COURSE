@@ -1,21 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   BookOpen, TrendingUp, Award, Clock, Play, ChevronRight,
-  User, Settings, LogOut, BarChart3, Zap, Star, Calendar
+  User, Settings, LogOut, Zap, Star
 } from "lucide-react";
-import { mockUser, mockCourses } from "@/lib/mockData";
+import { useAuth } from "@/contexts/AuthContext";
+import { signOut } from "@/lib/auth";
+import { mockCourses } from "@/lib/mockData";
+import toast from "react-hot-toast";
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { user, userDoc, loading } = useAuth();
   const [activeTab, setActiveTab] = useState("courses");
 
-  const enrolledCourses = mockCourses.filter((c) =>
-    mockUser.enrolledCourses.includes(c.id)
-  );
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [user, loading, router]);
 
-  const progress = mockUser.progress as Record<string, { completed: number; total: number; percentage: number }>;
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success("Signed out successfully");
+    router.push("/");
+  };
+
+  // Show loading skeleton while auth resolves
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen pt-20 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-brand-purple/30 border-t-brand-purple rounded-full animate-spin" />
+          <p className="text-white/40 text-sm">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Real enrolled courses from Firestore (or empty if none yet)
+  const enrolledCourseIds = userDoc?.enrolledCourses || [];
+  const enrolledCourses = mockCourses.filter((c) => enrolledCourseIds.includes(c.id));
+  const progress = userDoc?.progress || {};
+
+  // Display name
+  const displayName = user.displayName || user.email?.split("@")[0] || "Learner";
+  const firstName = displayName.split(" ")[0];
+
+  // Stats from real data
+  const totalCompleted = Object.values(progress).reduce(
+    (sum, p: any) => sum + (p.completed || 0),
+    0
+  );
 
   return (
     <div className="min-h-screen pt-20 bg-brand-black">
@@ -23,24 +63,30 @@ export default function DashboardPage() {
 
         {/* Welcome header */}
         <div className="glass rounded-2xl p-6 mb-8 flex flex-col sm:flex-row items-start sm:items-center gap-5">
-          <img
-            src={mockUser.avatar}
-            alt={mockUser.name}
-            className="w-16 h-16 rounded-2xl bg-brand-surface"
-          />
+          {user.photoURL ? (
+            <img
+              src={user.photoURL}
+              alt={displayName}
+              className="w-16 h-16 rounded-2xl object-cover"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-purple to-brand-blue flex items-center justify-center text-2xl font-black text-white">
+              {firstName[0]?.toUpperCase()}
+            </div>
+          )}
           <div className="flex-1">
             <p className="text-white/50 text-sm">Welcome back,</p>
             <h1 className="font-heading text-2xl font-black text-white">
-              {mockUser.name} 👋
+              {firstName} 👋
             </h1>
             <p className="text-white/40 text-sm mt-0.5">
-              Member since {mockUser.joinedDate} · {enrolledCourses.length} courses enrolled
+              {user.email} · {enrolledCourses.length} course{enrolledCourses.length !== 1 ? "s" : ""} enrolled
             </p>
           </div>
           <div className="flex items-center gap-2">
             <div className="glass px-4 py-2 rounded-xl flex items-center gap-2 text-sm text-white/60">
               <Zap size={14} className="text-brand-blue" />
-              <span>7-day streak 🔥</span>
+              <span>Keep learning! 🔥</span>
             </div>
           </div>
         </div>
@@ -48,10 +94,10 @@ export default function DashboardPage() {
         {/* Stats row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
-            { label: "Courses Enrolled", value: "2", icon: BookOpen, color: "text-brand-blue" },
-            { label: "Lessons Completed", value: "69", icon: Play, color: "text-green-400" },
-            { label: "Hours Learned", value: "14h", icon: Clock, color: "text-brand-purple-light" },
-            { label: "Certificates", value: "0", icon: Award, color: "text-amber-400" },
+            { label: "Courses Enrolled", value: String(enrolledCourses.length), icon: BookOpen, color: "text-brand-blue" },
+            { label: "Lessons Completed", value: String(totalCompleted), icon: Play, color: "text-green-400" },
+            { label: "Hours Learned", value: "—", icon: Clock, color: "text-brand-purple-light" },
+            { label: "Certificates Earned", value: "0", icon: Award, color: "text-amber-400" },
           ].map((stat) => (
             <div key={stat.label} className="glass rounded-xl p-5">
               <div className={`w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center mb-3 ${stat.color}`}>
@@ -73,9 +119,7 @@ export default function DashboardPage() {
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-all ${
-                    activeTab === tab
-                      ? "btn-primary"
-                      : "text-white/50 hover:text-white"
+                    activeTab === tab ? "btn-primary" : "text-white/50 hover:text-white"
                   }`}
                 >
                   {tab}
@@ -87,42 +131,50 @@ export default function DashboardPage() {
             {activeTab === "courses" && (
               <div className="space-y-4">
                 <h2 className="font-heading font-bold text-white text-lg">My Courses</h2>
-                {enrolledCourses.map((course) => {
-                  const p = progress[course.id] || { completed: 0, total: course.lessons, percentage: 0 };
-                  return (
-                    <div key={course.id} className="glass rounded-2xl p-5 flex gap-5 items-start">
-                      <img
-                        src={course.thumbnail}
-                        alt={course.title}
-                        className="w-20 h-14 rounded-xl object-cover flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-white text-sm mb-1 truncate">
-                          {course.title}
-                        </h3>
-                        <p className="text-xs text-white/40 mb-3">
-                          {p.completed} / {p.total} lessons completed
-                        </p>
-                        <div className="w-full h-1.5 bg-white/10 rounded-full mb-3">
-                          <div
-                            className="progress-bar h-full rounded-full"
-                            style={{ width: `${p.percentage}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/40">{p.percentage}% complete</span>
-                          <Link
-                            href={`/dashboard/learn/${course.id}/l1`}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:text-brand-blue/80 transition-colors"
-                          >
-                            <Play size={12} fill="currentColor" />
-                            Continue Learning
-                          </Link>
+
+                {enrolledCourses.length === 0 ? (
+                  <div className="glass rounded-2xl p-12 text-center">
+                    <BookOpen size={36} className="text-white/20 mx-auto mb-4" />
+                    <h3 className="font-heading font-bold text-white mb-2">No courses yet</h3>
+                    <p className="text-white/50 text-sm mb-6">
+                      Browse our catalog and enroll in your first course.
+                    </p>
+                    <Link href="/courses" className="btn-primary px-6 py-3 rounded-xl text-sm inline-flex items-center gap-2">
+                      <BookOpen size={15} /> Browse Courses
+                    </Link>
+                  </div>
+                ) : (
+                  enrolledCourses.map((course) => {
+                    const p = (progress as any)[course.id] || { completed: 0, total: course.lessons, percentage: 0 };
+                    return (
+                      <div key={course.id} className="glass rounded-2xl p-5 flex gap-5 items-start">
+                        <img
+                          src={course.thumbnail}
+                          alt={course.title}
+                          className="w-20 h-14 rounded-xl object-cover flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-white text-sm mb-1 truncate">{course.title}</h3>
+                          <p className="text-xs text-white/40 mb-3">
+                            {p.completed} / {p.total} lessons completed
+                          </p>
+                          <div className="w-full h-1.5 bg-white/10 rounded-full mb-3">
+                            <div className="progress-bar h-full rounded-full" style={{ width: `${p.percentage}%` }} />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/40">{p.percentage}% complete</span>
+                            <Link
+                              href={`/dashboard/learn/${course.id}/l1`}
+                              className="flex items-center gap-1.5 text-xs font-semibold text-brand-blue hover:text-brand-blue/80 transition-colors"
+                            >
+                              <Play size={12} fill="currentColor" /> Continue
+                            </Link>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
 
                 {/* Browse more */}
                 <Link
@@ -145,23 +197,29 @@ export default function DashboardPage() {
             {activeTab === "progress" && (
               <div className="glass rounded-2xl p-6">
                 <h2 className="font-heading font-bold text-white text-lg mb-6">Learning Progress</h2>
-                <div className="space-y-6">
-                  {enrolledCourses.map((course) => {
-                    const p = progress[course.id] || { completed: 0, total: course.lessons, percentage: 0 };
-                    return (
-                      <div key={course.id}>
-                        <div className="flex justify-between mb-2">
-                          <span className="text-sm font-medium text-white truncate pr-4">{course.title}</span>
-                          <span className="text-sm font-bold gradient-text whitespace-nowrap">{p.percentage}%</span>
+                {enrolledCourses.length === 0 ? (
+                  <p className="text-white/40 text-sm text-center py-8">
+                    Enroll in courses to track your progress here.
+                  </p>
+                ) : (
+                  <div className="space-y-6">
+                    {enrolledCourses.map((course) => {
+                      const p = (progress as any)[course.id] || { completed: 0, total: course.lessons, percentage: 0 };
+                      return (
+                        <div key={course.id}>
+                          <div className="flex justify-between mb-2">
+                            <span className="text-sm font-medium text-white truncate pr-4">{course.title}</span>
+                            <span className="text-sm font-bold gradient-text whitespace-nowrap">{p.percentage}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-white/10 rounded-full">
+                            <div className="progress-bar h-full rounded-full" style={{ width: `${p.percentage}%` }} />
+                          </div>
+                          <p className="text-xs text-white/40 mt-1">{p.completed} of {p.total} lessons</p>
                         </div>
-                        <div className="w-full h-2 bg-white/10 rounded-full">
-                          <div className="progress-bar h-full rounded-full" style={{ width: `${p.percentage}%` }} />
-                        </div>
-                        <p className="text-xs text-white/40 mt-1">{p.completed} of {p.total} lessons</p>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -169,23 +227,11 @@ export default function DashboardPage() {
             {activeTab === "activity" && (
               <div className="glass rounded-2xl p-6">
                 <h2 className="font-heading font-bold text-white text-lg mb-6">Recent Activity</h2>
-                <div className="space-y-4">
-                  {[
-                    { action: "Completed lesson", detail: "ES6+ Modern JavaScript", time: "2 hours ago" },
-                    { action: "Started course", detail: "Python for Data Science", time: "Yesterday" },
-                    { action: "Completed lesson", detail: "Setting Up Your Dev Environment", time: "2 days ago" },
-                    { action: "Enrolled in course", detail: "Full Stack Web Development Mastery", time: "3 days ago" },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-start gap-3 py-3 border-b border-white/5 last:border-0">
-                      <div className="w-8 h-8 rounded-full bg-brand-purple/20 flex items-center justify-center flex-shrink-0">
-                        <Play size={12} className="text-brand-purple-light" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-white/80">{item.action}: <span className="text-white">{item.detail}</span></p>
-                        <p className="text-xs text-white/35 mt-0.5">{item.time}</p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="text-center py-8">
+                  <TrendingUp size={32} className="text-white/20 mx-auto mb-3" />
+                  <p className="text-white/40 text-sm">
+                    Activity tracking will appear here as you complete lessons.
+                  </p>
                 </div>
               </div>
             )}
@@ -196,12 +242,11 @@ export default function DashboardPage() {
             {/* Quick actions */}
             <div className="glass rounded-2xl p-5">
               <h3 className="font-heading font-semibold text-white text-sm mb-4">Quick Actions</h3>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {[
                   { icon: User, label: "Edit Profile", href: "#" },
                   { icon: Award, label: "My Certificates", href: "#" },
                   { icon: Settings, label: "Account Settings", href: "#" },
-                  { icon: LogOut, label: "Sign Out", href: "/login" },
                 ].map(({ icon: Icon, label, href }) => (
                   <Link
                     key={label}
@@ -212,6 +257,12 @@ export default function DashboardPage() {
                     {label}
                   </Link>
                 ))}
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-3 py-2.5 px-3 rounded-xl text-sm text-red-400/60 hover:text-red-400 hover:bg-red-500/5 transition-all"
+                >
+                  <LogOut size={15} /> Sign Out
+                </button>
               </div>
             </div>
 
@@ -220,28 +271,37 @@ export default function DashboardPage() {
               <h3 className="font-heading font-semibold text-white text-sm mb-4">
                 Recommended for You
               </h3>
-              {mockCourses.filter((c) => !mockUser.enrolledCourses.includes(c.id)).slice(0, 2).map((course) => (
-                <Link
-                  key={course.id}
-                  href={`/courses/${course.slug}`}
-                  className="flex gap-3 items-center mb-4 last:mb-0 group"
-                >
-                  <img
-                    src={course.thumbnail}
-                    alt={course.title}
-                    className="w-14 h-10 rounded-lg object-cover"
-                  />
-                  <div>
-                    <p className="text-xs font-semibold text-white group-hover:text-brand-blue transition-colors leading-snug line-clamp-2">
-                      {course.title}
-                    </p>
-                    <p className="text-[10px] text-white/35 mt-0.5 flex items-center gap-1">
-                      <Star size={9} fill="#fbbf24" className="text-amber-400" />
-                      {course.rating} · ${course.price}
-                    </p>
-                  </div>
-                </Link>
-              ))}
+              {mockCourses
+                .filter((c) => !enrolledCourseIds.includes(c.id))
+                .slice(0, 2)
+                .map((course) => (
+                  <Link
+                    key={course.id}
+                    href={`/courses/${course.slug}`}
+                    className="flex gap-3 items-center mb-4 last:mb-0 group"
+                  >
+                    <img
+                      src={course.thumbnail}
+                      alt={course.title}
+                      className="w-14 h-10 rounded-lg object-cover"
+                    />
+                    <div>
+                      <p className="text-xs font-semibold text-white group-hover:text-brand-blue transition-colors leading-snug line-clamp-2">
+                        {course.title}
+                      </p>
+                      <p className="text-[10px] text-white/35 mt-0.5 flex items-center gap-1">
+                        <Star size={9} fill="#fbbf24" className="text-amber-400" />
+                        {course.rating} · ${course.price}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+
+              {mockCourses.filter((c) => !enrolledCourseIds.includes(c.id)).length === 0 && (
+                <p className="text-xs text-white/30 text-center py-2">
+                  You've explored all our courses! 🎉
+                </p>
+              )}
             </div>
           </div>
         </div>

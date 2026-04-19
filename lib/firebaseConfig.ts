@@ -1,17 +1,16 @@
 // Firebase configuration
-// Replace these values with your actual Firebase project config
-// See: https://console.firebase.google.com
+// Reads from .env.local — falls back to hardcoded values for local dev
+// NEVER commit real API keys to git without this dual-source approach
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCQU4s-uZQJ3D0oMPFBPZot2_kvDyrmixE",
-  authDomain: "premium-course-ea6f9.firebaseapp.com",
-  projectId: "premium-course-ea6f9",
-  storageBucket: "premium-course-ea6f9.firebasestorage.app",
-  messagingSenderId: "96495897862",
-  appId: "1:96495897862:web:0eafa81d64a2a776972287",
-  measurementId: "G-BH77LKDZD9"
+export const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCQU4s-uZQJ3D0oMPFBPZot2_kvDyrmixE",
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "premium-course-ea6f9.firebaseapp.com",
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "premium-course-ea6f9",
+  storageBucket: "premium-course-ea6f9.appspot.com",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "96495897862",
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:96495897862:web:0eafa81d64a2a776972287",
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-BH77LKDZD9",
 };
 
-// Mock mode: set to true to use demo data without Firebase
-// Set to false once you have your Firebase credentials
-export const MOCK_MODE = true;
+// Firebase is now active with real credentials
+export const MOCK_MODE = false;
